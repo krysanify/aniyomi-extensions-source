@@ -8,7 +8,8 @@ import eu.kanade.tachiyomi.multisrc.zorotheme.ZoroTheme
 class Kaido : ZoroTheme(
     "en",
     "Kaido",
-    "https://kaido.to",
+    "kaido.to",
+    arrayOf("kaido.to"),
     hosterNames = listOf(
         "Vidstreaming",
         "Vidcloud",

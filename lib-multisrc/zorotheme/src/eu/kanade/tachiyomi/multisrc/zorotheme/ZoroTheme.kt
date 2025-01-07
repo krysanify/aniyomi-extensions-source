@@ -20,7 +20,6 @@ import eu.kanade.tachiyomi.network.await
 import eu.kanade.tachiyomi.util.parallelCatchingFlatMap
 import eu.kanade.tachiyomi.util.parallelMapNotNull
 import eu.kanade.tachiyomi.util.parseAs
-import kotlinx.serialization.json.Json
 import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -30,25 +29,27 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import uy.kohesive.injekt.injectLazy
 
 abstract class ZoroTheme(
     override val lang: String,
     override val name: String,
-    override val baseUrl: String,
+    private val defaultDomain: String,
+    private val knownDomains: Array<String>,
     private val hosterNames: List<String>,
 ) : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
 
     override val supportsLatest = true
 
-    private val json: Json by injectLazy()
+    override val baseUrl by lazy {
+        "https://${preferences.getDomain}"
+    }
 
     val preferences: SharedPreferences by lazy {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
             .clearOldHosts()
     }
 
-    protected val docHeaders = headers.newBuilder().apply {
+    private val docHeaders = headers.newBuilder().apply {
         add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
         add("Host", baseUrl.toHttpUrl().host)
         add("Referer", "$baseUrl/")
@@ -81,7 +82,7 @@ abstract class ZoroTheme(
 
     // =============================== Latest ===============================
 
-    override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/top-airing?page=$page", docHeaders)
+    override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/recently-updated?page=$page", docHeaders)
 
     override fun latestUpdatesSelector(): String = popularAnimeSelector()
 
@@ -222,7 +223,7 @@ abstract class ZoroTheme(
 
             serversDoc.select("div.$type div.item").parallelMapNotNull {
                 val id = it.attr("data-id")
-                val type = it.attr("data-type")
+                val dtype = it.attr("data-type")
                 val name = it.text()
 
                 if (hosterSelection.contains(name, true).not()) return@parallelMapNotNull null
@@ -231,7 +232,7 @@ abstract class ZoroTheme(
                     GET("$baseUrl/ajax$ajaxRoute/episode/sources?id=$id", apiHeaders(episodeReferer)),
                 ).await().parseAs<SourcesResponse>().link ?: ""
 
-                VideoData(type, link, name)
+                VideoData(dtype, link, name)
             }
         }.flatten()
 
@@ -293,11 +294,14 @@ abstract class ZoroTheme(
         )
     }
 
+    private val SharedPreferences.getDomain
+        get() = getString(PREF_DOMAIN_KEY, defaultDomain)!!
+
     private val SharedPreferences.getTitleLang
         get() = getString(PREF_TITLE_LANG_KEY, PREF_TITLE_LANG_DEFAULT)!!
 
     private val SharedPreferences.markFiller
-        get() = getBoolean(MARK_FILLERS_KEY, MARK_FILLERS_DEFAULT)
+        get() = MARK_FILLERS_DEFAULT // getBoolean(MARK_FILLERS_KEY, MARK_FILLERS_DEFAULT)
 
     private val SharedPreferences.prefQuality
         get() = getString(PREF_QUALITY_KEY, PREF_QUALITY_DEFAULT)!!
@@ -315,6 +319,7 @@ abstract class ZoroTheme(
         get() = getStringSet(PREF_TYPE_TOGGLE_KEY, PREF_TYPES_TOGGLE_DEFAULT)!!
 
     companion object {
+        private const val PREF_DOMAIN_KEY = "preferred_domain_base"
         private const val PREF_TITLE_LANG_KEY = "preferred_title_lang"
         private const val PREF_TITLE_LANG_DEFAULT = "Romaji"
         private val PREF_TITLE_LANG_LIST = arrayOf("Romaji", "English")
@@ -341,9 +346,28 @@ abstract class ZoroTheme(
     // ============================== Settings ==============================
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        if (1 < knownDomains.size) {
+            ListPreference(screen.context).apply {
+                key = PREF_DOMAIN_KEY
+                title = "Preferred Domain"
+                entries = knownDomains
+                entryValues = knownDomains
+                setDefaultValue(defaultDomain)
+                summary = "%s"
+
+                setOnPreferenceChangeListener { _, newValue ->
+                    val selected = newValue as String
+                    val index = findIndexOfValue(selected)
+                    val entry = entryValues[index] as String
+                    Toast.makeText(screen.context, "Restart to apply $selected", Toast.LENGTH_LONG).show()
+                    preferences.edit().putString(key, entry).commit()
+                }
+            }.also(screen::addPreference)
+        }
+
         ListPreference(screen.context).apply {
             key = PREF_TITLE_LANG_KEY
-            title = "Preferred title language"
+            title = "Preferred Title Language"
             entries = PREF_TITLE_LANG_LIST
             entryValues = PREF_TITLE_LANG_LIST
             setDefaultValue(PREF_TITLE_LANG_DEFAULT)
@@ -353,7 +377,7 @@ abstract class ZoroTheme(
                 val selected = newValue as String
                 val index = findIndexOfValue(selected)
                 val entry = entryValues[index] as String
-                Toast.makeText(screen.context, "Restart Aniyomi to apply new setting.", Toast.LENGTH_LONG).show()
+                Toast.makeText(screen.context, "Restart to apply $selected.", Toast.LENGTH_LONG).show()
                 preferences.edit().putString(key, entry).commit()
             }
         }.also(screen::addPreference)
@@ -366,11 +390,11 @@ abstract class ZoroTheme(
                 Toast.makeText(screen.context, "Restart Aniyomi to apply new setting.", Toast.LENGTH_LONG).show()
                 preferences.edit().putBoolean(key, newValue as Boolean).commit()
             }
-        }.also(screen::addPreference)
+        } // .also(screen::addPreference)
 
         ListPreference(screen.context).apply {
             key = PREF_QUALITY_KEY
-            title = "Preferred quality"
+            title = "Preferred Quality"
             entries = arrayOf("1080p", "720p", "480p", "360p")
             entryValues = arrayOf("1080", "720", "480", "360")
             setDefaultValue(PREF_QUALITY_DEFAULT)
