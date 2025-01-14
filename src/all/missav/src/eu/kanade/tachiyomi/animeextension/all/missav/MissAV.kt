@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.animeextension.all.missav
 
 import android.app.Application
+import android.widget.Toast
 import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
@@ -29,7 +30,9 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override val lang = "all"
 
-    override val baseUrl = "https://missav.com"
+    override val baseUrl by lazy {
+        "https://${preferences.getString(PREF_DOMAIN_KEY, PREF_DOMAIN_DEFAULT)}"
+    }
 
     override val supportsLatest = true
 
@@ -165,6 +168,23 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         ListPreference(screen.context).apply {
+            key = PREF_DOMAIN_KEY
+            title = PREF_DOMAIN_TITLE
+            entries = PREF_DOMAIN_ENTRIES
+            entryValues = PREF_DOMAIN_ENTRIES
+            setDefaultValue(PREF_DOMAIN_DEFAULT)
+            summary = "%s"
+
+            setOnPreferenceChangeListener { _, newValue ->
+                val selected = newValue as String
+                val index = findIndexOfValue(selected)
+                val entry = entryValues[index] as String
+                Toast.makeText(screen.context, "Restart to apply $selected", Toast.LENGTH_LONG).show()
+                preferences.edit().putString(key, entry).commit()
+            }
+        }.also(screen::addPreference)
+
+        ListPreference(screen.context).apply {
             key = PREF_QUALITY
             title = PREF_QUALITY_TITLE
             entries = arrayOf("720p", "480p", "360p")
@@ -184,6 +204,10 @@ class MissAV : AnimeHttpSource(), ConfigurableAnimeSource {
         filterIsInstance<T>().firstOrNull()
 
     companion object {
+        private const val PREF_DOMAIN_KEY = "preferred_domain_base"
+        private const val PREF_DOMAIN_TITLE = "Preferred Domain"
+        private const val PREF_DOMAIN_DEFAULT = "missav.ws"
+        private val PREF_DOMAIN_ENTRIES = arrayOf("missav.ws", "missav.ai")
         private const val PREF_QUALITY = "preferred_quality"
         private const val PREF_QUALITY_TITLE = "Preferred quality"
         private const val PREF_QUALITY_DEFAULT = "720"
