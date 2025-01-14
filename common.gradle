@@ -103,7 +103,7 @@ dependencies {
     compileOnly(libs.bundles.common)
 }
 
-configurations.all {
+configurations.configureEach {
     resolutionStrategy.eachDependency { DependencyResolveDetails details ->
         if (details.requested.group == 'org.jetbrains.kotlin' && details.requested.name == 'kotlin-stdlib-jdk8' && details.requested.version == '1.7.0') {
             details.useVersion(libs.versions.kotlin.version.get())

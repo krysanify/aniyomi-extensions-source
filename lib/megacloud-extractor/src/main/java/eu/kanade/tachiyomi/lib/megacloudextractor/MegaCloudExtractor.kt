@@ -19,6 +19,10 @@ import okhttp3.CacheControl
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
+import org.mozilla.javascript.Context
+import org.mozilla.javascript.NativeJSON
+import org.mozilla.javascript.NativeObject
+import org.mozilla.javascript.Scriptable
 import uy.kohesive.injekt.injectLazy
 
 class MegaCloudExtractor(
@@ -29,7 +33,6 @@ class MegaCloudExtractor(
     private val json: Json by injectLazy()
 
     private val playlistUtils by lazy { PlaylistUtils(client, headers) }
-    private val webViewResolver by lazy { WebViewResolver(headers) }
 
     private val cacheControl = CacheControl.Builder().noStore().build()
     private val noCacheClient = client.newBuilder()
@@ -149,7 +152,7 @@ class MegaCloudExtractor(
             .substringBefore("?", "").ifEmpty { throw Exception("I HATE THE ANTICHRIST") }
 
         if (type == 0) {
-            return webViewResolver.getSources(id)!!
+            return getSources(id)
         }
 
         val srcRes = client.newCall(GET(SERVER_URL[type] + SOURCES_URL[type] + id))
@@ -164,6 +167,44 @@ class MegaCloudExtractor(
         val decrypted = json.decodeFromString<List<VideoLink>>(tryDecrypting(ciphered, keyType))
 
         return VideoDto(decrypted, data.tracks)
+    }
+
+    private fun getSources(id: String): VideoDto {
+        var result = "{\"sources\":[],\"tracks\":[]}"
+        val r = Runnable {
+            val rhino = Context.enter()
+            rhino.initSafeStandardObjects()
+            rhino.optimizationLevel = -1
+            val scope: Scriptable = rhino.initSafeStandardObjects()
+            scope.put("window", scope, scope)
+            try {
+                rhino.evaluateScript(scope, "crypto-js")
+                rhino.evaluateScript(scope, "megacloud.decodedpng")
+                rhino.evaluateScript(scope, "megacloud.getsrcs")
+                rhino.evaluateString(scope, "var svg = getSources(\"$id\")", "js", 1, null)
+                val svgObject = scope.get("svg", scope)
+                result = if (svgObject is NativeObject) {
+                    NativeJSON.stringify(Context.getCurrentContext(), scope, svgObject, null, null)
+                        .toString()
+                } else {
+                    Context.toString(svgObject)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                Context.exit()
+            }
+        }
+        val t = Thread(ThreadGroup("A"), r, "thread_rhino", 2000000) // StackSize 2Mb: Run in a thread because rhino requires more stack size for large scripts.
+        t.start()
+        t.join()
+        t.interrupt()
+        return result.let { json.decodeFromString<VideoDto>(it) }
+    }
+
+    private fun Context.evaluateScript(scope: Scriptable, assetName: String): Any {
+        val srcReader = javaClass.getResourceAsStream("/assets/$assetName.js")?.bufferedReader()
+        return evaluateReader(scope, srcReader, assetName, 1, null)
     }
 
     @Serializable
