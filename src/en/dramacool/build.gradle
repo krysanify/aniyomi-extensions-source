@@ -1,7 +1,7 @@
 ext {
-    extName = 'DramaCool'
+    extName = 'DramaClone'
     extClass = '.DramaCool'
-    extVersionCode = 52
+    extVersionCode = 53
 }
 
 apply from: "$rootDir/common.gradle"
@@ -10,4 +10,6 @@ dependencies {
     implementation(project(':lib:streamwish-extractor'))
     implementation(project(':lib:streamtape-extractor'))
     implementation(project(':lib:dood-extractor'))
+    implementation project(':lib:vidmoly-extractor')
+    implementation project(':lib:vidhide-extractor')
 }
