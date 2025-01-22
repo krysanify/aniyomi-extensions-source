@@ -87,7 +87,8 @@ class DramaCool : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
             title = attr("alt")
             thumbnail_url = absUrl("src")
         }
-        prefClone.parseDramaInfo(document)?.let {
+        val info = document.selectFirst(prefClone.detailsSelector)
+        prefClone.parseDramaInfo(info).let {
             description = it.description
             author = it.author
             genre = it.genre

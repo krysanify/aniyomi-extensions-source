@@ -5,7 +5,6 @@ import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
 import okio.ByteString.Companion.decodeBase64
-import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.net.URI
 import java.text.SimpleDateFormat
@@ -52,6 +51,7 @@ sealed class CloneSite(id: Clones) {
         override val popularItemSelector = "ul.list-episode-item li a"
         override val popularNextSelector = "li a.next"
         override val searchNextSelector = "ul.page-numbers li:has(> span.current) + li a.page-numbers"
+        override val detailsSelector = "div.info"
         override val episodeSelector = "ul.all-episode li a"
 
         override fun getPopularList(page: Int) =
@@ -76,12 +76,11 @@ sealed class CloneSite(id: Clones) {
             title = element.selectFirst(".title").textNotBlank() ?: "Untitled"
         }
 
-        override fun parseDramaInfo(document: Document) = document.selectFirst("div.info")
-            ?.toDramaInfo(
-                "p:contains(Description) ~ p:not(:has(span))",
-                "p:contains(Genre:)",
-                "p:contains(Status:)",
-            )
+        override fun parseDramaInfo(element: Element?) = element?.toDramaInfo(
+            "p:contains(Description) ~ p:not(:has(span))",
+            "p:contains(Genre:)",
+            "p:contains(Status:)",
+        ) ?: DramaInfo()
 
         override fun createEpisode(element: Element) = SEpisode.create().apply(
             link = element.attr("href"),
@@ -110,7 +109,8 @@ sealed class CloneSite(id: Clones) {
 
     object DramaNice : CloneSite(Clones.DramaNice) {
         override val popularItemSelector = "ul.items li .img a"
-        override val popularNextSelector = "li a.next"
+        override val popularNextSelector = "li.next a"
+        override val detailsSelector = "div.info_right"
         override val episodeSelector = "ul.list_episode li a"
 
         override fun getPopularList(page: Int) =
@@ -137,12 +137,11 @@ sealed class CloneSite(id: Clones) {
             }
         }
 
-        override fun parseDramaInfo(document: Document) = document.selectFirst("div.info_right")
-            ?.toDramaInfo(
-                "p:contains(Description) ~ p:not(:has(span))",
-                "p:contains(Genre:)",
-                "p:contains(Status:)",
-            )
+        override fun parseDramaInfo(element: Element?) = element?.toDramaInfo(
+            "p:contains(Description) ~ p:not(:has(span))",
+            "p:contains(Genre:)",
+            "p:contains(Status:)",
+        ) ?: DramaInfo()
 
         override fun createEpisode(element: Element) = SEpisode.create().apply(
             link = element.attr("href"),
@@ -165,10 +164,11 @@ sealed class CloneSite(id: Clones) {
         final override val popularItemSelector = "ul.items > li > a"
         final override val popularNextSelector = "ul.page-numbers li a.next"
         final override val searchNextSelector = "ul.pagination li.selected + li a"
+        final override val detailsSelector = "div.movie"
         final override val episodeSelector = "ul.list-episode li a"
 
-        override fun getPopularList(page: Int): String = throw IllegalAccessException()
-        override fun getLatestList(page: Int): String = throw IllegalAccessException()
+        override fun getPopularList(page: Int): String = throw UnsupportedOperationException()
+        override fun getLatestList(page: Int): String = throw UnsupportedOperationException()
         override fun getSearchList(page: Int, query: String, filters: AnimeFilterList) =
             if (1 == page) {
                 "$baseUrl/?s=$query"
@@ -184,12 +184,11 @@ sealed class CloneSite(id: Clones) {
             }
         }
 
-        override fun parseDramaInfo(document: Document) = document.selectFirst("div.movie")
-            ?.toDramaInfo(
-                "h3:contains(Plot) + div.info p",
-                "p:contains(Genre) span",
-                "p:contains(Status) span",
-            )
+        override fun parseDramaInfo(element: Element?) = element?.toDramaInfo(
+            "h3:contains(Plot) + div.info p",
+            "p:contains(Genre) span",
+            "p:contains(Status) span",
+        ) ?: DramaInfo()
 
         override fun createEpisode(element: Element) = SEpisode.create().apply(
             link = element.attr("href"),
@@ -228,6 +227,7 @@ sealed class CloneSite(id: Clones) {
         override val popularItemSelector = "ul.list-episode-item li a"
         override val latestItemSelector = "ul.switch-block a"
         override val popularNextSelector = "li.next a"
+        override val detailsSelector = "div.info"
         override val episodeSelector = "ul.all-episode li a"
 
         override fun getPopularList(page: Int) = "$baseUrl/most-popular-drama?page=$page"
@@ -243,7 +243,7 @@ sealed class CloneSite(id: Clones) {
             title = element.selectFirst("h3")?.text() ?: "Serie"
         }
 
-        override fun parseDramaInfo(document: Document) = document.selectFirst("div.info")?.run {
+        override fun parseDramaInfo(element: Element?) = element?.run {
             DramaInfo(
                 description = select("p:contains(Description) ~ p:not(:has(span))").eachText()
                     .joinToString("\n")
@@ -252,7 +252,7 @@ sealed class CloneSite(id: Clones) {
                 genre = select("p:contains(Genre:) > a").joinToString { it.text() }.takeUnless(String::isBlank),
                 status = selectFirst("p:contains(Status) a").textToStatus(),
             )
-        }
+        } ?: DramaInfo()
 
         override fun createEpisode(element: Element) = SEpisode.create().apply {
             url = element.attr("href").getUrlWithoutDomain()
@@ -295,6 +295,7 @@ sealed class CloneSite(id: Clones) {
         get() = popularNextSelector
 
     open val coverSelector = "div.img img"
+    abstract val detailsSelector: String
     abstract val episodeSelector: String
 
     abstract fun getPopularList(page: Int): String
@@ -306,7 +307,7 @@ sealed class CloneSite(id: Clones) {
     abstract fun getSearchList(page: Int, query: String, filters: AnimeFilterList): String
     open fun createSearchItem(element: Element) = createPopularItem(element)
 
-    abstract fun parseDramaInfo(document: Document): DramaInfo?
+    abstract fun parseDramaInfo(element: Element?): DramaInfo
 
     abstract fun createEpisode(element: Element): SEpisode
 
@@ -319,7 +320,12 @@ sealed class CloneSite(id: Clones) {
     abstract fun mapVideoHost(element: Element, url: String): VideoHosts
 }
 
-data class DramaInfo(val description: String?, val author: String?, val genre: String?, val status: Int)
+data class DramaInfo(
+    val description: String? = null,
+    val author: String? = null,
+    val genre: String? = null,
+    val status: Int = SAnime.UNKNOWN
+)
 
 private fun Element.toDramaInfo(storySelector: String, genreSelector: String, statusSelector: String) = run {
     val story = select(storySelector).eachText().joinToString("\n")
@@ -343,7 +349,8 @@ private fun SEpisode.apply(link: String, type: String, title: String?, time: Ele
 }
 
 private fun String.getUrlWithoutDomain() = URI.create(this).run {
-    path + query?.prependIndent("?").orEmpty() + fragment?.prependIndent("?").orEmpty()
+    val url = query?.let { "$path?$it" } ?: path
+    fragment?.let { "$url#$it" } ?: url
 }
 
 private fun String.getLinkAsSeries() = with(getUrlWithoutDomain()) {
@@ -362,7 +369,7 @@ private val DATE_FORMATTER by lazy {
     SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH)
 }
 
-private fun Element?.textToDate(): Long = with(this?.ownText()!!) {
+private fun Element?.textToDate(): Long = this?.ownText()?.run {
     when {
         contains(" second") -> substringBefore(' ').toInt().seconds
         contains(" minute") -> substringBefore(' ').toInt().minutes
@@ -391,5 +398,6 @@ private fun Element.toVideoHost() = when (attr("data-provider")) {
     "vidhide" -> VideoHosts.VidHide
     "streamwish" -> VideoHosts.StreamWish
     "doodstream" -> VideoHosts.DoodStream
+    "streamtape" -> VideoHosts.StreamTape
     else -> VideoHosts.Unknown
 }
