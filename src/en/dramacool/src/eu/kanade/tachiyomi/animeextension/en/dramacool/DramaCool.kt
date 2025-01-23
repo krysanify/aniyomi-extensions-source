@@ -209,7 +209,7 @@ class DramaCool : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
         private const val PREF_QUALITY_KEY = "preferred_quality"
         private const val PREF_QUALITY_TITLE = "Preferred quality"
         private const val PREF_QUALITY_DEFAULT = "1080p"
-        private val PREF_QUALITY_ENTRIES = arrayOf("1080p", "720p", "480p", "360p")
+        private val PREF_QUALITY_ENTRIES = arrayOf("1080p", "720p", "480p", "360p", "Doodstream", "StreamTape")
         private val PREF_QUALITY_VALUES = PREF_QUALITY_ENTRIES
     }
 }
