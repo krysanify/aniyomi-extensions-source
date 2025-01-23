@@ -145,8 +145,7 @@ sealed class CloneSite(id: Clones) {
 
         override fun createEpisode(element: Element) = SEpisode.create().apply(
             link = element.attr("href"),
-            type = element.selectFirst("span:last-child")?.ownText()
-                .orEmpty().substringAfterLast('|').trim().ifEmpty { "RAW" },
+            type = element.className().ifEmpty { "RAW" },
             title = element.attr("title"),
             time = null,
         )
@@ -192,9 +191,9 @@ sealed class CloneSite(id: Clones) {
 
         override fun createEpisode(element: Element) = SEpisode.create().apply(
             link = element.attr("href"),
-            type = element.ownText().substringAfterLast(" ").uppercase(),
+            type = element.parent()?.previousElementSibling().textNotBlank() ?: "RAW",
             title = element.attr("title"),
-            time = null,
+            time = element.parent()?.nextElementSibling(),
         )
 
         override fun getVideoList(
@@ -324,7 +323,7 @@ data class DramaInfo(
     val description: String? = null,
     val author: String? = null,
     val genre: String? = null,
-    val status: Int = SAnime.UNKNOWN
+    val status: Int = SAnime.UNKNOWN,
 )
 
 private fun Element.toDramaInfo(storySelector: String, genreSelector: String, statusSelector: String) = run {
@@ -339,9 +338,10 @@ private fun Element.toDramaInfo(storySelector: String, genreSelector: String, st
     )
 }
 
+private val EPISODE_REGEX = Regex("""\b(Ep|Episode)\b (\d+) """)
+
 private fun SEpisode.apply(link: String, type: String, title: String?, time: Element?) = apply {
-    val episode = title?.substringAfterLast("Ep ", "")
-        ?.substringBeforeLast(" Eng Sub", "0") ?: "0"
+    val episode = title?.let { EPISODE_REGEX.find(it)?.groupValues }?.get(2) ?: "0"
     url = link.getUrlWithoutDomain()
     name = "$type: Episode $episode"
     episode_number = episode.toFloatOrNull() ?: 1F
