@@ -36,10 +36,10 @@ enum class Clones(val value: String) {
                 DramaCoolTv1 -> CloneSite.DramaCoolTv1
                 DramaCoolTv2 -> CloneSite.DramaCoolTv2
                 DramaCoolTv3 -> CloneSite.DramaCoolTv3
-                DramaNice -> CloneSite.DramaNice
+                DramaNice -> CloneSite.DramaNice(domain)
                 MyAsianTv1 -> CloneSite.MyAsianTv1
                 MyAsianTv2 -> CloneSite.MyAsianTv2
-                else -> CloneSite.AsianC
+                else -> CloneSite.AsianC(domain)
             }
         }
     }
@@ -48,8 +48,8 @@ enum class Clones(val value: String) {
 enum class VideoHosts { DoodStream, StreamHQ, StreamTape, StreamWish, VidHide, VidMoly, Unknown }
 
 // TODO: Allow user-defined id (see 'custom domain' pref on DramaCool)
-sealed class CloneSite(id: Clones) {
-    open class DramaCoolTv(d: Clones) : CloneSite(d) {
+sealed class CloneSite(domain: String) {
+    open class DramaCoolTv(d: Clones) : CloneSite(d.value) {
         override val popularItemSelector = "ul.list-episode-item li a"
         override val popularNextSelector = "li a.next"
         override val searchNextSelector = "ul.page-numbers li:has(> span.current) + li a.page-numbers"
@@ -109,8 +109,9 @@ sealed class CloneSite(id: Clones) {
             .also { it.url = it.url.removePrefix("/series") }
     }
 
-    object DramaNice : CloneSite(Clones.DramaNice) {
-        override val popularItemSelector = "ul.items li .img a"
+    open class DramaNice(id: String?) : CloneSite(id ?: Clones.DramaNice.value) {
+        override val popularItemSelector = "ul.items li .img a,#drama ul.box li a.mask"
+        override val searchItemSelector = "ul.items li .img a,ul.list-thumb li .post-thumbnail a"
         override val popularNextSelector = "li.next a"
         override val detailsSelector = "div.info_right"
         override val episodeSelector = "ul.list_episode li a"
@@ -133,10 +134,12 @@ sealed class CloneSite(id: Clones) {
 
         override fun createPopularItem(element: Element) = SAnime.create().apply {
             url = element.attr("href").getLinkAsSeries()
-            element.selectFirst("img")?.run {
-                thumbnail_url = attr("src")
-                title = attr("alt").ifBlank { "Untitled" }
-            }
+            title = element.selectFirst("img")?.run {
+                thumbnail_url = attr("data-src")
+                    .ifEmpty { attr("data-original") }
+                    .ifEmpty { attr("src") }
+                attr("alt").ifBlank { "Untitled" }
+            } ?: "Untitled"
         }
 
         override fun parseDramaInfo(element: Element?) = element?.toDramaInfo(
@@ -147,7 +150,7 @@ sealed class CloneSite(id: Clones) {
 
         override fun createEpisode(element: Element) = SEpisode.create().apply(
             link = element.attr("href"),
-            type = element.className().ifEmpty { "RAW" },
+            type = if (element.`is`(":has(.SUB)")) "SUB" else "RAW",
             title = element.attr("title"),
             time = null,
         )
@@ -156,12 +159,15 @@ sealed class CloneSite(id: Clones) {
             element: Element,
             onRedirect: (String) -> List<Video>,
             onEmbedded: (VideoHosts, String) -> List<Video>,
-        ): List<Video> = element.attr("data-src").toVideoList(onEmbedded, onRedirect)
+        ): List<Video> = element.attr("data-src").ifEmpty {
+            element.parents().select("#w-server .serverslist").first()
+                ?.attr("data-server") ?: ""
+        }.toVideoList(onEmbedded, onRedirect)
 
         override fun mapVideoHost(element: Element, url: String) = element.toVideoHost()
     }
 
-    open class MyAsianTv(d: Clones) : CloneSite(d) {
+    open class MyAsianTv(d: Clones) : CloneSite(d.value) {
         final override val popularItemSelector = "ul.items > li > a"
         final override val popularNextSelector = "ul.page-numbers li a.next"
         final override val searchNextSelector = "ul.pagination li.selected + li a"
@@ -224,7 +230,7 @@ sealed class CloneSite(id: Clones) {
         override fun getLatestList(page: Int) = getDramaList(page, 1, "drama-8")
     }
 
-    object AsianC : CloneSite(Clones.AsianC) {
+    open class AsianC(id: String?) : CloneSite(id ?: Clones.AsianC.value) {
         override val popularItemSelector = "ul.list-episode-item li a"
         override val latestItemSelector = "ul.switch-block a"
         override val popularNextSelector = "li.next a"
@@ -271,7 +277,13 @@ sealed class CloneSite(id: Clones) {
             element: Element,
             onRedirect: (String) -> List<Video>,
             onEmbedded: (VideoHosts, String) -> List<Video>,
-        ): List<Video> = onRedirect(element.absUrl("src"))
+        ): List<Video> = with(element.absUrl("src")) {
+            if (contains("/embed/")) {
+                onEmbedded(VideoHosts.StreamHQ, this)
+            } else {
+                onRedirect(this)
+            }
+        }
 
         override fun mapVideoHost(element: Element, url: String) = when {
             url.contains("dood") -> VideoHosts.DoodStream
@@ -281,7 +293,7 @@ sealed class CloneSite(id: Clones) {
         }
     }
 
-    val baseUrl = "https://${id.value}"
+    val baseUrl = "https://$domain"
 
     abstract val popularItemSelector: String
     open val latestItemSelector: String
@@ -340,7 +352,7 @@ private fun Element.toDramaInfo(storySelector: String, genreSelector: String, st
     )
 }
 
-private val EPISODE_REGEX = Regex("""\b(Ep|Episode)\b (\d+) """)
+private val EPISODE_REGEX = Regex("""\b(Ep|Episode)\b (\d+)""")
 
 private fun SEpisode.apply(link: String, type: String, title: String?, time: Element?) = apply {
     val episode = title?.let { EPISODE_REGEX.find(it)?.groupValues }?.get(2) ?: "0"
@@ -390,6 +402,7 @@ private fun String.toVideoList(
 ) = when {
     contains("vidmoly") -> onEmbedded(VideoHosts.VidMoly, this)
     contains("iplayerhls") -> onEmbedded(VideoHosts.StreamHQ, this)
+    contains("/embed/") -> onEmbedded(VideoHosts.StreamHQ, this)
     startsWith("//") -> onRedirect("https:$this")
     else -> onRedirect(this)
 }
