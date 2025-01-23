@@ -39,11 +39,8 @@ class DramaCool : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
 
-    private val prefClone = with(preferences.getString(PREF_DOMAIN_KEY, Clones.default)) {
-        // TODO: Apply custom domain to override known one, yet still use its parsing
-        // val custom = preferences.getString(PREF_CUSTOM_KEY, PREF_CUSTOM_DEFAULT)!!
-        Clones.getOrBuild(this.orEmpty())
-    }
+    private val prefClone = preferences.getString(PREF_DOMAIN_KEY, Clones.DEFAULT)!!
+        .let { Clones.getOrBuild(it, getCustomDomain()) }
 
     // ============================== Popular ===============================
     override fun popularAnimeRequest(page: Int) = GET(prefClone.getPopularList(page))
@@ -107,7 +104,7 @@ class DramaCool : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
     override fun videoListParse(response: Response): List<Video> {
         val document = response.asJsoup()
         val iframe = document.selectFirst("iframe") ?: return emptyList()
-        return prefClone.getVideoList(iframe, ::fetchVideoList, ::extractVideoList)
+        return prefClone.getVideoList(iframe, ::fetchVideoList, ::extractVideoList).sort()
     }
 
     private fun fetchVideoList(iframeUrl: String): List<Video> {
@@ -139,7 +136,7 @@ class DramaCool : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
             VideoHosts.StreamTape -> streamtapeExtractor.videosFromUrl(url)
             else -> emptyList()
         }
-    }.getOrElse { emptyList() }.sort()
+    }.getOrElse { emptyList() }
 
     override fun videoFromElement(element: Element) = throw UnsupportedOperationException()
 
@@ -149,10 +146,10 @@ class DramaCool : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         ListPreference(screen.context).apply {
             key = PREF_DOMAIN_KEY
-            title = PREF_DOMAIN_TITLE
+            title = "Preferred Domain"
             entries = Clones.toArray()
             entryValues = entries
-            setDefaultValue(Clones.default)
+            setDefaultValue(Clones.DEFAULT)
             summary = "%s"
 
             setOnPreferenceChangeListener { _, newValue ->
@@ -168,14 +165,28 @@ class DramaCool : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
         EditTextPreference(screen.context).apply {
             key = PREF_CUSTOM_KEY
             title = "Custom Domain"
-            setDefaultValue(PREF_CUSTOM_DEFAULT)
-            summary = "Change preferred to %s"
-            setOnPreferenceChangeListener { _, newValue ->
-                val value = "$newValue".trim().takeUnless(String::isBlank)
-                Toast.makeText(screen.context, "Restart app to apply $value", Toast.LENGTH_LONG).show()
-                preferences.edit().putString(key, value).commit()
+            summary = getCustomDomain()?.let { "Moved to `$it`" }
+            setOnPreferenceChangeListener { pref, newValue ->
+                (newValue as String).trim().takeUnless(String::isBlank)?.let {
+                    pref.summary = "Restart app to apply `$it`"
+                    preferences.edit().putString(pref.key, it).commit()
+                } ?: preferences.edit().remove(pref.key).commit().also {
+                    pref.summary = "Restart app to clear"
+                }
             }
-        } // TODO:.also(screen::addPreference) //Read lazy init of prefClone
+        }.also(screen::addPreference)
+
+        ListPreference(screen.context).apply {
+            key = PREF_HOST_KEY
+            title = "Preferred Host"
+            entries = VideoHosts.values().map { it.name }.toTypedArray()
+            entryValues = entries
+            summary = "%s"
+
+            setOnPreferenceChangeListener { _, newValue ->
+                preferences.edit().putString(key, newValue as String).commit()
+            }
+        }.also(screen::addPreference)
 
         ListPreference(screen.context).apply {
             key = PREF_QUALITY_KEY
@@ -194,20 +205,26 @@ class DramaCool : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
         }.also(screen::addPreference)
     }
 
+    private fun getCustomDomain() = preferences.getString(PREF_CUSTOM_KEY, null)
+        ?.takeUnless(String::isBlank)
+
     // ============================= Utilities ==============================
     override fun List<Video>.sort(): List<Video> {
         val quality = preferences.getString(PREF_QUALITY_KEY, PREF_QUALITY_DEFAULT)!!
-        return sortedWith(compareByDescending { it.quality.contains(quality) })
+        val host = preferences.getString(PREF_HOST_KEY, "")!!
+        return sortedWith(
+            compareByDescending<Video> { it.quality.contains(quality) }
+                .thenByDescending { it.quality.contains(host, true) },
+        )
     }
 
     companion object {
         private const val PREF_DOMAIN_KEY = "preferred_domain_base"
-        private const val PREF_DOMAIN_TITLE = "Preferred Domain"
         private const val PREF_CUSTOM_KEY = "custom_domain"
-        private const val PREF_CUSTOM_DEFAULT = ""
+        private const val PREF_HOST_KEY = "preferred_host"
 
         private const val PREF_QUALITY_KEY = "preferred_quality"
-        private const val PREF_QUALITY_TITLE = "Preferred quality"
+        private const val PREF_QUALITY_TITLE = "Preferred Quality"
         private const val PREF_QUALITY_DEFAULT = "1080p"
         private val PREF_QUALITY_ENTRIES = arrayOf("1080p", "720p", "480p", "360p", "Doodstream", "StreamTape")
         private val PREF_QUALITY_VALUES = PREF_QUALITY_ENTRIES

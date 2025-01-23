@@ -28,11 +28,10 @@ enum class Clones(val value: String) {
     ;
 
     companion object {
-        private val VALUES = Clones.values()
-        val default = AsianC.value
-        fun toArray() = VALUES.map { it.value }.toTypedArray()
-        fun getOrBuild(id: String): CloneSite {
-            val clone = VALUES.firstOrNull { id == it.value } ?: AsianC
+        val DEFAULT = AsianC.value
+        fun toArray() = values().map { it.value }.sorted().toTypedArray()
+        fun getOrBuild(id: String, domain: String? = null): CloneSite {
+            val clone = values().firstOrNull { id == it.value } ?: AsianC
             return when (clone) {
                 DramaCoolTv1 -> CloneSite.DramaCoolTv1
                 DramaCoolTv2 -> CloneSite.DramaCoolTv2
@@ -46,7 +45,7 @@ enum class Clones(val value: String) {
     }
 }
 
-enum class VideoHosts { Unknown, VidMoly, StreamHQ, VidHide, DoodStream, StreamWish, StreamTape }
+enum class VideoHosts { DoodStream, StreamHQ, StreamTape, StreamWish, VidHide, VidMoly, Unknown }
 
 // TODO: Allow user-defined id (see 'custom domain' pref on DramaCool)
 sealed class CloneSite(id: Clones) {
