@@ -39,7 +39,7 @@ class DramaCool : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
         Injekt.get<Application>().getSharedPreferences("source_$id", 0x0000)
     }
 
-    private val prefClone = with(preferences.getString(PREF_DOMAIN_KEY, Clones.DramaCoolTV.value)) {
+    private val prefClone = with(preferences.getString(PREF_DOMAIN_KEY, Clones.default)) {
         // TODO: Apply custom domain to override known one, yet still use its parsing
         // val custom = preferences.getString(PREF_CUSTOM_KEY, PREF_CUSTOM_DEFAULT)!!
         Clones.getOrBuild(this.orEmpty())
@@ -147,20 +147,20 @@ class DramaCool : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
 
     // ============================== Settings ==============================
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
-        val knownClones = Clones.values().map { it.value }.toTypedArray()
         ListPreference(screen.context).apply {
             key = PREF_DOMAIN_KEY
             title = PREF_DOMAIN_TITLE
-            entries = knownClones
+            entries = Clones.toArray()
             entryValues = entries
-            setDefaultValue(Clones.DramaCoolTV.value)
+            setDefaultValue(Clones.default)
             summary = "%s"
 
             setOnPreferenceChangeListener { _, newValue ->
                 val selected = newValue as String
                 val index = findIndexOfValue(selected)
                 val entry = entryValues[index] as String
-                Toast.makeText(screen.context, "Restart app to apply $selected", Toast.LENGTH_LONG).show()
+                Toast.makeText(screen.context, "Restart app to apply $selected", Toast.LENGTH_LONG)
+                    .show()
                 preferences.edit().putString(key, entry).commit()
             }
         }.also(screen::addPreference)

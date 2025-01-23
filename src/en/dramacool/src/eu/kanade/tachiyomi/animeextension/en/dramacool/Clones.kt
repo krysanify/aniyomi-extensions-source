@@ -19,24 +19,27 @@ private fun String.undo() = decodeBase64()!!.utf8()
 
 enum class Clones(val value: String) {
     AsianC("YXNpYW5jLmNv".undo()),
-    DramaCoolTV("ZHJhbWFjb29sdHYuY3lvdQ".undo()),
-    WatchAsian("d2F0Y2hhc2lhbi5jeW91".undo()),
-    ViewAsian("dmlld2FzaWFuLmxvbA".undo()),
+    DramaCoolTv1("ZHJhbWFjb29sdHYuY3lvdQ".undo()),
+    DramaCoolTv2("d2F0Y2hhc2lhbi5jeW91".undo()),
+    DramaCoolTv3("dmlld2FzaWFuLmxvbA".undo()),
     DramaNice("ZHJhbWFuaWNlLmN5b3U".undo()),
-    MyAsianTV1("bXlhc2lhbnR2LmN2".undo()),
-    MyAsianTV2("bS5teWFzaWFudHYucmVzdA".undo()),
+    MyAsianTv1("bXlhc2lhbnR2LmN2".undo()),
+    MyAsianTv2("bS5teWFzaWFudHYucmVzdA".undo()),
     ;
 
     companion object {
-        private val CLONES = Clones.values()
+        private val VALUES = Clones.values()
+        val default = AsianC.value
+        fun toArray() = VALUES.map { it.value }.toTypedArray()
         fun getOrBuild(id: String): CloneSite {
-            return when (CLONES.firstOrNull { id == it.value } ?: AsianC) {
-                DramaCoolTV -> CloneSite.DramaCoolTV
-                WatchAsian -> CloneSite.WatchAsian
-                ViewAsian -> CloneSite.ViewAsian
+            val clone = VALUES.firstOrNull { id == it.value } ?: AsianC
+            return when (clone) {
+                DramaCoolTv1 -> CloneSite.DramaCoolTv1
+                DramaCoolTv2 -> CloneSite.DramaCoolTv2
+                DramaCoolTv3 -> CloneSite.DramaCoolTv3
                 DramaNice -> CloneSite.DramaNice
-                MyAsianTV1 -> CloneSite.MyAsianTv1
-                MyAsianTV2 -> CloneSite.MyAsianTv2
+                MyAsianTv1 -> CloneSite.MyAsianTv1
+                MyAsianTv2 -> CloneSite.MyAsianTv2
                 else -> CloneSite.AsianC
             }
         }
@@ -47,7 +50,7 @@ enum class VideoHosts { Unknown, VidMoly, StreamHQ, VidHide, DoodStream, StreamW
 
 // TODO: Allow user-defined id (see 'custom domain' pref on DramaCool)
 sealed class CloneSite(id: Clones) {
-    open class DramaCool(d: Clones) : CloneSite(d) {
+    open class DramaCoolTv(d: Clones) : CloneSite(d) {
         override val popularItemSelector = "ul.list-episode-item li a"
         override val popularNextSelector = "li a.next"
         override val searchNextSelector = "ul.page-numbers li:has(> span.current) + li a.page-numbers"
@@ -98,11 +101,11 @@ sealed class CloneSite(id: Clones) {
         override fun mapVideoHost(element: Element, url: String) = element.toVideoHost()
     }
 
-    object DramaCoolTV : DramaCool(Clones.DramaCoolTV)
+    object DramaCoolTv1 : DramaCoolTv(Clones.DramaCoolTv1)
 
-    object WatchAsian : DramaCool(Clones.WatchAsian)
+    object DramaCoolTv2 : DramaCoolTv(Clones.DramaCoolTv2)
 
-    object ViewAsian : DramaCool(Clones.ViewAsian) {
+    object DramaCoolTv3 : DramaCoolTv(Clones.DramaCoolTv3) {
         override fun createPopularItem(element: Element) = super.createPopularItem(element)
             .also { it.url = it.url.removePrefix("/series") }
     }
@@ -212,12 +215,12 @@ sealed class CloneSite(id: Clones) {
             }
     }
 
-    object MyAsianTv1 : MyAsianTv(Clones.MyAsianTV1) {
+    object MyAsianTv1 : MyAsianTv(Clones.MyAsianTv1) {
         override fun getPopularList(page: Int) = getDramaList(page, 4)
         override fun getLatestList(page: Int) = getDramaList(page, 1)
     }
 
-    object MyAsianTv2 : MyAsianTv(Clones.MyAsianTV2) {
+    object MyAsianTv2 : MyAsianTv(Clones.MyAsianTv2) {
         override fun getPopularList(page: Int) = getDramaList(page, 4, "drama-8")
         override fun getLatestList(page: Int) = getDramaList(page, 1, "drama-8")
     }
