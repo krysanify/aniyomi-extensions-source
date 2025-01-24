@@ -11,6 +11,7 @@ import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.animesource.online.ParsedAnimeHttpSource
 import eu.kanade.tachiyomi.lib.doodextractor.DoodExtractor
+import eu.kanade.tachiyomi.lib.mixdropextractor.MixDropExtractor
 import eu.kanade.tachiyomi.lib.streamtapeextractor.StreamTapeExtractor
 import eu.kanade.tachiyomi.lib.streamwishextractor.StreamWishExtractor
 import eu.kanade.tachiyomi.lib.vidhideextractor.VidHideExtractor
@@ -117,6 +118,7 @@ class DramaCool : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
     private val streamtapeExtractor by lazy { StreamTapeExtractor(client) }
     private val vidMolyExtractor by lazy { VidMolyExtractor(client) }
     private val vidHideExtractor by lazy { VidHideExtractor(client, headers) }
+    private val mixDropExtractor by lazy { MixDropExtractor(client) }
 
     // TODO: Create a extractor for the "Standard server" thingie.
     // it'll require Synchrony or something similar, but synchrony is too slow >:(
@@ -134,6 +136,8 @@ class DramaCool : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
             VideoHosts.DoodStream -> doodExtractor.videosFromUrl(url)
             VideoHosts.StreamWish -> streamwishExtractor.videosFromUrl(url)
             VideoHosts.StreamTape -> streamtapeExtractor.videosFromUrl(url)
+            VideoHosts.FileLions -> streamwishExtractor.videosFromUrl(url, "FileLions")
+            VideoHosts.MixDrop -> mixDropExtractor.videoFromUrl(url)
             else -> emptyList()
         }
     }.getOrElse { emptyList() }

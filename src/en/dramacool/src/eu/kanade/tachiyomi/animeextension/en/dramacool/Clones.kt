@@ -45,7 +45,7 @@ enum class Clones(val value: String) {
     }
 }
 
-enum class VideoHosts { DoodStream, StreamHQ, StreamTape, StreamWish, VidHide, VidMoly, Unknown }
+enum class VideoHosts { DoodStream, FileLions, MixDrop, StreamHQ, StreamTape, StreamWish, VidHide, VidMoly, Unknown }
 
 // TODO: Allow user-defined id (see 'custom domain' pref on DramaCool)
 sealed class CloneSite(domain: String) {
@@ -159,10 +159,13 @@ sealed class CloneSite(domain: String) {
             element: Element,
             onRedirect: (String) -> List<Video>,
             onEmbedded: (VideoHosts, String) -> List<Video>,
-        ): List<Video> = element.attr("data-src").ifEmpty {
-            element.parents().select("#w-server .serverslist").first()
-                ?.attr("data-server") ?: ""
-        }.toVideoList(onEmbedded, onRedirect)
+        ): List<Video> = with(element.parents().select("#w-server .serverslist")) {
+            if (isEmpty()) {
+                element.attr("data-src").toVideoList(onEmbedded, onRedirect)
+            } else {
+                flatMap { it.attr("data-server").toVideoList(onEmbedded, onRedirect) }
+            }
+        }
 
         override fun mapVideoHost(element: Element, url: String) = element.toVideoHost()
     }
@@ -402,6 +405,12 @@ private fun String.toVideoList(
 ) = when {
     contains("vidmoly") -> onEmbedded(VideoHosts.VidMoly, this)
     contains("iplayerhls") -> onEmbedded(VideoHosts.StreamHQ, this)
+    contains("dood") -> onEmbedded(VideoHosts.DoodStream, this)
+    contains("dwish") -> onEmbedded(VideoHosts.StreamWish, this)
+    contains("streamtape") -> onEmbedded(VideoHosts.StreamTape, this)
+    contains("sbplay2") -> onEmbedded(VideoHosts.StreamTape, this)
+    contains("mixdrop") -> onEmbedded(VideoHosts.MixDrop, this)
+    contains("dlions") -> onEmbedded(VideoHosts.FileLions, this)
     contains("/embed/") -> onEmbedded(VideoHosts.StreamHQ, this)
     startsWith("//") -> onRedirect("https:$this")
     else -> onRedirect(this)

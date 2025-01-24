@@ -12,4 +12,5 @@ dependencies {
     implementation(project(':lib:dood-extractor'))
     implementation project(':lib:vidmoly-extractor')
     implementation project(':lib:vidhide-extractor')
+    implementation project(':lib:mixdrop-extractor')
 }
