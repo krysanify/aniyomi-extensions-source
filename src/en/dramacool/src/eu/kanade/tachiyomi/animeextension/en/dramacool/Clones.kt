@@ -20,11 +20,11 @@ private fun String.undo() = decodeBase64()!!.utf8()
 enum class Clones(val value: String) {
     AsianC("YXNpYW5jLmNv".undo()),
     DramaCoolTv1("ZHJhbWFjb29sdHYuY3lvdQ".undo()),
-    DramaCoolTv2("d2F0Y2hhc2lhbi5jeW91".undo()),
+    DramaCoolTv2("d2F0Y2hhc2lhbi5jb20uaW0".undo()),
     DramaCoolTv3("dmlld2FzaWFuLmxvbA".undo()),
     DramaNice("ZHJhbWFuaWNlLmN5b3U".undo()),
     MyAsianTv1("bXlhc2lhbnR2LmN2".undo()),
-    MyAsianTv2("bS5teWFzaWFudHYucmVzdA".undo()),
+    MyAsianTv2("bXlhc2lhbnR2LnJlc3Q".undo()),
     ;
 
     companion object {
@@ -110,11 +110,12 @@ sealed class CloneSite(domain: String) {
     }
 
     open class DramaNice(id: String?) : CloneSite(id ?: Clones.DramaNice.value) {
-        override val popularItemSelector = "ul.items li .img a,#drama ul.box li a.mask"
-        override val searchItemSelector = "ul.items li .img a,ul.list-thumb li .post-thumbnail a"
-        override val popularNextSelector = "li.next a"
-        override val detailsSelector = "div.info_right"
-        override val episodeSelector = "ul.list_episode li a"
+        final override val popularItemSelector = "ul.items li .img a"
+        final override val latestItemSelector = "$popularItemSelector,#drama ul.box li a.mask"
+        final override val searchItemSelector = "$popularItemSelector,ul.list-thumb li .post-thumbnail a"
+        final override val popularNextSelector = "li.next a,.nav-links a.next"
+        final override val detailsSelector = "div.info_right"
+        final override val episodeSelector = "ul.list_episode li a"
 
         override fun getPopularList(page: Int) =
             if (1 == page) {
@@ -138,8 +139,11 @@ sealed class CloneSite(domain: String) {
                 thumbnail_url = attr("data-src")
                     .ifEmpty { attr("data-original") }
                     .ifEmpty { attr("src") }
-                attr("alt").ifBlank { "Untitled" }
-            } ?: "Untitled"
+                attr("alt")
+                    .ifEmpty { attr("title") }
+                    .ifEmpty { null }
+            } ?: element.attr("title")
+                .ifEmpty { "Untitled" }
         }
 
         override fun parseDramaInfo(element: Element?) = element?.toDramaInfo(
@@ -162,8 +166,8 @@ sealed class CloneSite(domain: String) {
         ): List<Video> = with(element.parents().select("#w-server .serverslist")) {
             if (isEmpty()) {
                 element.attr("data-src").toVideoList(onEmbedded, onRedirect)
-            } else {
-                flatMap { it.attr("data-server").toVideoList(onEmbedded, onRedirect) }
+            } else distinctBy { it.attr("data-server") }.flatMap {
+                it.attr("data-server").toVideoList(onEmbedded, onRedirect)
             }
         }
 
@@ -387,17 +391,19 @@ private val DATE_FORMATTER by lazy {
 }
 
 private fun Element?.textToDate(): Long = this?.ownText()?.run {
-    when {
-        contains(" second") -> substringBefore(' ').toInt().seconds
-        contains(" minute") -> substringBefore(' ').toInt().minutes
-        contains(" hour") -> substringBefore(' ').toInt().hours
-        contains(" day") -> substringBefore(' ').toInt().days
-        contains(" week") -> (substringBefore(' ').toInt() * 7).days
-        contains(" month") -> (substringBefore(' ').toInt() * 30).days
-        contains(" year") -> (substringBefore(' ').toInt() * 365).days
-        else -> runCatching { DATE_FORMATTER.parse(this)?.time?.milliseconds }.getOrNull()
+    runCatching { DATE_FORMATTER.parse(this)?.time }.getOrElse {
+        System.currentTimeMillis() - when {
+            contains(" second") -> substringBefore(' ').toInt().seconds
+            contains(" minute") -> substringBefore(' ').toInt().minutes
+            contains(" hour") -> substringBefore(' ').toInt().hours
+            contains(" day") -> substringBefore(' ').toInt().days
+            contains(" week") -> (substringBefore(' ').toInt() * 7).days
+            contains(" month") -> (substringBefore(' ').toInt() * 30).days
+            contains(" year") -> (substringBefore(' ').toInt() * 365).days
+            else -> 0.milliseconds
+        }.inWholeMilliseconds
     }
-}?.run { System.currentTimeMillis() - inWholeMilliseconds } ?: 0L
+} ?: 0L
 
 private fun String.toVideoList(
     onEmbedded: (VideoHosts, String) -> List<Video>,
