@@ -4,6 +4,7 @@ import android.app.Application
 import android.widget.Toast
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
+import androidx.preference.MultiSelectListPreference
 import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.animesource.ConfigurableAnimeSource
 import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
@@ -128,19 +129,26 @@ class DramaCool : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
         return extractVideoList(host, url)
     }
 
-    private fun extractVideoList(host: VideoHosts, url: String) = runCatching {
-        when (host) {
-            VideoHosts.VidMoly -> vidMolyExtractor.videosFromUrl(url)
-            VideoHosts.VidHide -> vidHideExtractor.videosFromUrl(url)
-            VideoHosts.StreamHQ -> streamwishExtractor.videosFromUrl(url, "StreamHQ")
-            VideoHosts.DoodStream -> doodExtractor.videosFromUrl(url)
-            VideoHosts.StreamWish -> streamwishExtractor.videosFromUrl(url)
-            VideoHosts.StreamTape -> streamtapeExtractor.videosFromUrl(url)
-            VideoHosts.FileLions -> streamwishExtractor.videosFromUrl(url, "FileLions")
-            VideoHosts.MixDrop -> mixDropExtractor.videoFromUrl(url)
-            else -> emptyList()
-        }
-    }.getOrElse { emptyList() }
+    private val excludedHosts by lazy {
+        preferences.getStringSet(PREF_EXCLUDED_KEY, null).orEmpty()
+    }
+
+    private fun extractVideoList(host: VideoHosts, url: String) =
+        if (excludedHosts.contains(host.name)) {
+            emptyList()
+        } else runCatching {
+            when (host) {
+                VideoHosts.VidMoly -> vidMolyExtractor.videosFromUrl(url)
+                VideoHosts.VidHide -> vidHideExtractor.videosFromUrl(url)
+                VideoHosts.StreamHQ -> streamwishExtractor.videosFromUrl(url, "StreamHQ")
+                VideoHosts.DoodStream -> doodExtractor.videosFromUrl(url)
+                VideoHosts.StreamWish -> streamwishExtractor.videosFromUrl(url)
+                VideoHosts.StreamTape -> streamtapeExtractor.videosFromUrl(url)
+                VideoHosts.FileLions -> streamwishExtractor.videosFromUrl(url, "FileLions")
+                VideoHosts.MixDrop -> mixDropExtractor.videoFromUrl(url)
+                else -> emptyList()
+            }
+        }.getOrElse { emptyList() }
 
     override fun videoFromElement(element: Element) = throw UnsupportedOperationException()
 
@@ -171,24 +179,49 @@ class DramaCool : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
             title = "Custom Domain"
             summary = getCustomDomain()?.let { "Moved to `$it`" }
             setOnPreferenceChangeListener { pref, newValue ->
-                (newValue as String).trim().takeUnless(String::isBlank)?.let {
-                    pref.summary = "Restart app to apply `$it`"
-                    preferences.edit().putString(pref.key, it).commit()
-                } ?: preferences.edit().remove(pref.key).commit().also {
-                    pref.summary = "Restart app to clear"
-                }
+                preferences.edit().run {
+                    val custom = newValue as String
+                    if (custom.isBlank()) {
+                        pref.summary = "Restart app to clear"
+                        remove(pref.key)
+                    } else {
+                        pref.summary = "Restart app to apply `$custom`"
+                        putString(pref.key, custom)
+                    }
+                }.commit()
             }
         }.also(screen::addPreference)
 
+        val hostNames = VideoHosts.values().map { it.name }.toTypedArray()
         ListPreference(screen.context).apply {
             key = PREF_HOST_KEY
             title = "Preferred Host"
-            entries = VideoHosts.values().map { it.name }.toTypedArray()
+            entries = hostNames
             entryValues = entries
             summary = "%s"
 
             setOnPreferenceChangeListener { _, newValue ->
                 preferences.edit().putString(key, newValue as String).commit()
+            }
+        }.also(screen::addPreference)
+
+        MultiSelectListPreference(screen.context).apply {
+            key = PREF_EXCLUDED_KEY
+            title = "Excluded Hosts"
+            entries = hostNames
+            entryValues = entries
+            setDefaultValue(emptySet<String>())
+            summary = excludedHosts.joinToString()
+
+            setOnPreferenceChangeListener { pref, newValue ->
+                @Suppress("UNCHECKED_CAST")
+                val excluded = newValue as Set<String>
+                pref.summary = excluded.joinToString()
+                Toast.makeText(screen.context, "Restart app to apply", Toast.LENGTH_LONG)
+                    .show()
+                preferences.edit().run {
+                    if (excluded.isEmpty()) remove(pref.key) else putStringSet(key, excluded)
+                }.commit()
             }
         }.also(screen::addPreference)
 
@@ -226,6 +259,7 @@ class DramaCool : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
         private const val PREF_DOMAIN_KEY = "preferred_domain_base"
         private const val PREF_CUSTOM_KEY = "custom_domain"
         private const val PREF_HOST_KEY = "preferred_host"
+        private const val PREF_EXCLUDED_KEY = "excluded_hosts"
 
         private const val PREF_QUALITY_KEY = "preferred_quality"
         private const val PREF_QUALITY_TITLE = "Preferred Quality"
