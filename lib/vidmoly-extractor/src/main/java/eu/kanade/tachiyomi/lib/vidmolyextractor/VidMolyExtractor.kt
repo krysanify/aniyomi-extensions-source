@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.lib.vidmolyextractor
 
+import eu.kanade.tachiyomi.animesource.model.Track
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.lib.playlistutils.PlaylistUtils
 import eu.kanade.tachiyomi.network.GET
@@ -29,12 +30,21 @@ class VidMolyExtractor(private val client: OkHttpClient, headers: Headers = EMPT
         val script = document.selectFirst("script:containsData(sources)")!!.data()
         val sources = sourcesRegex.find(script)!!.groupValues[1]
         val urls = urlsRegex.findAll(sources).map { it.groupValues[1] }.toList()
+        val tracks = script.extractSubtitles()
         return urls.flatMap {
             playlistUtils.extractFromHls(it,
                 videoNameGen = { quality -> "${prefix}VidMoly - $quality" },
                 masterHeaders = headers,
                 videoHeaders = headers,
+                subtitleList = tracks
             )
         }
     }
+
+    //FIXME: should prob use regex to handle .vtt,.srt,.ass, etc
+    private fun String.extractSubtitles() = substringBefore(".vtt", "")
+        .substringAfterLast("https:", "")
+        .takeUnless(String::isEmpty)?.let {
+            listOf(Track("https:$it.vtt", "English"))
+        } ?: emptyList()
 }
