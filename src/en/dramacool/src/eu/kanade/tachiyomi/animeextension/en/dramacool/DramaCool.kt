@@ -140,7 +140,7 @@ class DramaCool : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
             when (host) {
                 VideoHosts.VidMoly -> vidMolyExtractor.videosFromUrl(url)
                 VideoHosts.VidHide -> vidHideExtractor.videosFromUrl(url)
-                VideoHosts.StreamHQ -> streamwishExtractor.videosFromUrl(url, "StreamHQ")
+                VideoHosts.StreamHG -> streamwishExtractor.videosFromUrl(url, "StreamHG")
                 VideoHosts.DoodStream -> doodExtractor.videosFromUrl(url)
                 VideoHosts.StreamWish -> streamwishExtractor.videosFromUrl(url)
                 VideoHosts.StreamTape -> streamtapeExtractor.videosFromUrl(url)

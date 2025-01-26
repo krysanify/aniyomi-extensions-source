@@ -45,7 +45,7 @@ enum class Clones(val value: String) {
     }
 }
 
-enum class VideoHosts { DoodStream, FileLions, MixDrop, StreamHQ, StreamTape, StreamWish, VidHide, VidMoly, Unknown }
+enum class VideoHosts { DoodStream, FileLions, MixDrop, StreamHG, StreamTape, StreamWish, VidHide, VidMoly, Unknown }
 
 // TODO: Allow user-defined id (see 'custom domain' pref on DramaCool)
 sealed class CloneSite(domain: String) {
@@ -86,8 +86,8 @@ sealed class CloneSite(domain: String) {
 
         override fun createEpisode(element: Element) = SEpisode.create().apply(
             link = element.attr("href"),
-            type = element.selectFirst(".type")?.text() ?: "RAW",
-            title = element.selectFirst(".title")?.text(),
+            type = element.selectFirst(".type").textNotBlank() ?: "RAW",
+            title = element.selectFirst(".title").textNotBlank(),
             time = element.selectFirst(".time"),
         )
 
@@ -286,7 +286,7 @@ sealed class CloneSite(domain: String) {
             onEmbedded: (VideoHosts, String) -> List<Video>,
         ): List<Video> = with(element.absUrl("src")) {
             if (contains("/embed/")) {
-                onEmbedded(VideoHosts.StreamHQ, this)
+                onEmbedded(VideoHosts.StreamHG, this)
             } else {
                 onRedirect(this)
             }
@@ -359,12 +359,13 @@ private fun Element.toDramaInfo(storySelector: String, genreSelector: String, st
     )
 }
 
-private val EPISODE_REGEX = Regex("""\b(Ep|Episode)\b (\d+)""")
+private val EPISODE_REGEX = Regex("""\b(Ep|Episode)\b (\d+)(\.\d+)?""")
 
 private fun SEpisode.apply(link: String, type: String, title: String?, time: Element?) = apply {
-    val episode = title?.let { EPISODE_REGEX.find(it)?.groupValues }?.get(2) ?: "0"
+    val episode = EPISODE_REGEX.find(title.orEmpty())
+        ?.run { groupValues[2] + groupValues[3] } ?: "0"
     url = link.getUrlWithoutDomain()
-    name = "$type: Episode $episode"
+    name = if ("0" == episode) "$type Movie" else "$type Episode $episode"
     episode_number = episode.toFloatOrNull() ?: 1F
     date_upload = time.textToDate()
 }
@@ -410,21 +411,21 @@ private fun String.toVideoList(
     onRedirect: (String) -> List<Video>,
 ) = when {
     contains("vidmoly") -> onEmbedded(VideoHosts.VidMoly, this)
-    contains("iplayerhls") -> onEmbedded(VideoHosts.StreamHQ, this)
+    contains("iplayerhls") -> onEmbedded(VideoHosts.StreamHG, this)
     contains("dood") -> onEmbedded(VideoHosts.DoodStream, this)
     contains("dwish") -> onEmbedded(VideoHosts.StreamWish, this)
     contains("streamtape") -> onEmbedded(VideoHosts.StreamTape, this)
     contains("sbplay2") -> onEmbedded(VideoHosts.StreamTape, this)
     contains("mixdrop") -> onEmbedded(VideoHosts.MixDrop, this)
     contains("dlions") -> onEmbedded(VideoHosts.FileLions, this)
-    contains("/embed/") -> onEmbedded(VideoHosts.StreamHQ, this)
+    contains("/embed/") -> onEmbedded(VideoHosts.StreamWish, this)
     startsWith("//") -> onRedirect("https:$this")
     else -> onRedirect(this)
 }
 
 private fun Element.toVideoHost() = when (attr("data-provider")) {
     "vidmoly" -> VideoHosts.VidMoly
-    "streamhg" -> VideoHosts.StreamHQ
+    "streamhg" -> VideoHosts.StreamHG
     "vidhide" -> VideoHosts.VidHide
     "streamwish" -> VideoHosts.StreamWish
     "doodstream" -> VideoHosts.DoodStream
