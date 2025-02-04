@@ -132,7 +132,7 @@ class DramaCool : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
     }
 
     private fun extractVideoList(host: VideoHosts, url: String) =
-        if (excludedHosts.contains(host.name)) {
+        if (url.isEmpty() || excludedHosts.contains(host.name)) {
             emptyList()
         } else runCatching {
             when (host) {

@@ -25,6 +25,8 @@ enum class Clones(val value: String) {
     DramaNice("ZHJhbWFuaWNlLmN5b3U".undo()),
     MyAsianTv1("bXlhc2lhbnR2LmN2".undo()),
     MyAsianTv2("bXlhc2lhbnR2LnJlc3Q".undo()),
+    MyAsianTv3("bXlhc2lhbnR2OS54eXo".undo()),
+    MyAsianTv4("bXlhc2lhbnR2OS5zYnM".undo()),
     ;
 
     companion object {
@@ -37,8 +39,10 @@ enum class Clones(val value: String) {
                 DramaCoolTv2 -> CloneSite.DramaCoolTv2
                 DramaCoolTv3 -> CloneSite.DramaCoolTv3
                 DramaNice -> CloneSite.DramaNice(domain)
-                MyAsianTv1 -> CloneSite.MyAsianTv1
+                MyAsianTv1 -> CloneSite.MyAsianTv(MyAsianTv1)
                 MyAsianTv2 -> CloneSite.MyAsianTv2
+                MyAsianTv3 -> CloneSite.MyAsianTv(MyAsianTv3)
+                MyAsianTv4 -> CloneSite.MyAsianTv(MyAsianTv4)
                 else -> CloneSite.AsianC(domain)
             }
         }
@@ -186,8 +190,8 @@ sealed class CloneSite(domain: String) {
         final override val detailsSelector = "div.movie"
         final override val episodeSelector = "ul.list-episode li a"
 
-        override fun getPopularList(page: Int): String = throw UnsupportedOperationException()
-        override fun getLatestList(page: Int): String = throw UnsupportedOperationException()
+        override fun getPopularList(page: Int) = getDramaList(page, 4)
+        override fun getLatestList(page: Int) = getDramaList(page, 1)
         override fun getSearchList(page: Int, query: String, filters: AnimeFilterList) =
             if (1 == page) {
                 "$baseUrl/?s=$query"
@@ -230,11 +234,6 @@ sealed class CloneSite(domain: String) {
             } else {
                 "$baseUrl/$prefix/page/$page/?selOrder=$order"
             }
-    }
-
-    object MyAsianTv1 : MyAsianTv(Clones.MyAsianTv1) {
-        override fun getPopularList(page: Int) = getDramaList(page, 4)
-        override fun getLatestList(page: Int) = getDramaList(page, 1)
     }
 
     object MyAsianTv2 : MyAsianTv(Clones.MyAsianTv2) {
@@ -434,6 +433,7 @@ private fun Element.toVideoHost() = when (attr("data-provider")) {
     "vidhide" -> VideoHosts.VidHide
     "streamwish" -> VideoHosts.StreamWish
     "doodstream" -> VideoHosts.DoodStream
-    "streamtape" -> VideoHosts.StreamTape
+    "streamtape", "backup" -> VideoHosts.StreamTape
+    "mixdrop" -> VideoHosts.MixDrop
     else -> VideoHosts.Unknown
 }
