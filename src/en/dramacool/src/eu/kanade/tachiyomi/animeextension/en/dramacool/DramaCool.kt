@@ -121,8 +121,6 @@ class DramaCool : ConfigurableAnimeSource, ParsedAnimeHttpSource() {
     private val vidHideExtractor by lazy { VidHideExtractor(client, headers) }
     private val mixDropExtractor by lazy { MixDropExtractor(client) }
 
-    // TODO: Create a extractor for the "Standard server" thingie.
-    // it'll require Synchrony or something similar, but synchrony is too slow >:(
     private fun videosFromElement(element: Element): List<Video> {
         val url = element.attr("data-video")
         val host = prefClone.mapVideoHost(element, url)

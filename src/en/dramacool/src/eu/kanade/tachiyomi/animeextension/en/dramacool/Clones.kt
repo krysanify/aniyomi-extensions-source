@@ -47,7 +47,6 @@ enum class Clones(val value: String) {
 
 enum class VideoHosts { DoodStream, FileLions, MixDrop, StreamHG, StreamTape, StreamWish, VidHide, VidMoly, Unknown }
 
-// TODO: Allow user-defined id (see 'custom domain' pref on DramaCool)
 sealed class CloneSite(domain: String) {
     open class DramaCoolTv(d: Clones) : CloneSite(d.value) {
         override val popularItemSelector = "ul.list-episode-item li a"
@@ -110,10 +109,16 @@ sealed class CloneSite(domain: String) {
     }
 
     open class DramaNice(id: String?) : CloneSite(id ?: Clones.DramaNice.value) {
+        private val dotWsLatestSelector = "#drama ul.box li a.mask"
+        private val dotWsSearchSelector = "ul.list-thumb li .post-thumbnail a"
+        private val dotWsNextSelector = ".nav-links a.next"
+
         final override val popularItemSelector = "ul.items li .img a"
-        final override val latestItemSelector = "$popularItemSelector,#drama ul.box li a.mask"
-        final override val searchItemSelector = "$popularItemSelector,ul.list-thumb li .post-thumbnail a"
-        final override val popularNextSelector = "li.next a,.nav-links a.next"
+        final override val latestItemSelector = "$popularItemSelector,$dotWsLatestSelector"
+        final override val searchItemSelector = "$popularItemSelector,$dotWsSearchSelector"
+        final override val popularNextSelector = "li.next a"
+        final override val latestNextSelector = "li a.next"
+        final override val searchNextSelector = "li a.next,$dotWsNextSelector"
         final override val detailsSelector = "div.info_right"
         final override val episodeSelector = "ul.list_episode li a"
 
